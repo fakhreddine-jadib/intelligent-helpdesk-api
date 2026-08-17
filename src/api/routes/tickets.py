@@ -13,6 +13,7 @@ from src.inference import predict_ticket
 from src.models.schemas import (build_ticket_document, utc_now,
                                 TICKET_STATUSES, QUEUES, PRIORITIES,
                                 PRIORITY_RANK)
+from src.services import activity_log
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,18 @@ def create_ticket():
     logger.info("Ticket %s created -> %s / %s (triage=%s)",
                 result.inserted_id, document["assigned_queue"],
                 document["priority"], document["needs_triage"])
+    
+    activity_log.record(
+        activity_log.TICKET_CREATED,
+        actor_email=user["email"],
+        ticket_id=str(result.inserted_id),
+        details={
+            "assigned_queue": document["assigned_queue"],
+            "priority": document["priority"],
+            "needs_triage": document["needs_triage"],
+            "escalated": document["escalated"],
+        },
+    )
 
     return jsonify(_serialize(document)), 201
 
@@ -183,18 +196,29 @@ def update_ticket(ticket_id):
 
     db = get_db()
     try:
-        doc = db.tickets.find_one_and_update(
-            {"_id": ObjectId(ticket_id)},
-            {"$set": updates},
-            return_document=True,
-        )
+        before = db.tickets.find_one({"_id": ObjectId(ticket_id)})
     except InvalidId:
         return jsonify({"error": "invalid_id",
                         "message": "Malformed ticket identifier."}), 400
 
-    if not doc:
+    if not before:
         return jsonify({"error": "not_found",
                         "message": "Ticket does not exist."}), 404
+
+    doc = db.tickets.find_one_and_update(
+        {"_id": ObjectId(ticket_id)},
+        {"$set": updates},
+        return_document=True,
+    )
+
+    actor = request.current_user["email"]
+    activity_log.record(
+        activity_log.TICKET_UPDATED,
+        actor_email=actor,
+        ticket_id=ticket_id,
+        details={"fields": list(updates.keys())},
+    )
+    activity_log.record_override(ticket_id, actor, before, updates)
 
     logger.info("Ticket %s updated by %s: %s",
                 ticket_id, request.current_user["email"], list(updates))
@@ -218,4 +242,39 @@ def delete_ticket(ticket_id):
 
     logger.warning("Ticket %s deleted by %s",
                    ticket_id, request.current_user["email"])
+    
+    activity_log.record(
+        activity_log.TICKET_DELETED,
+        actor_email=request.current_user["email"],
+        ticket_id=ticket_id,
+    )
     return jsonify({"deleted": True}), 200
+
+
+@tickets_bp.get("/logs")
+@role_required("admin")
+def list_logs():
+    """Read the activity log (administrators only)."""
+    db = get_db()
+
+    query = {}
+    event_type = request.args.get("event_type")
+    if event_type:
+        query["event_type"] = event_type
+
+    try:
+        limit = min(200, max(1, int(request.args.get("limit", 50))))
+    except ValueError:
+        return jsonify({"error": "invalid_limit",
+                        "message": "Parameter 'limit' must be an integer."}), 400
+
+    cursor = db.logs.find(query).sort("timestamp", -1).limit(limit)
+
+    items = []
+    for doc in cursor:
+        doc = dict(doc)
+        doc["id"] = str(doc.pop("_id"))
+        doc["timestamp"] = doc["timestamp"].isoformat()
+        items.append(doc)
+
+    return jsonify({"count": len(items), "items": items}), 200
