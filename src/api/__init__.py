@@ -35,6 +35,9 @@ def create_app(config_name: str | None = None) -> Flask:
     from src.api.routes.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix="/api")
 
+    from src.api.routes.tickets import tickets_bp
+    app.register_blueprint(tickets_bp, url_prefix="/api")
+
     @app.errorhandler(404)
     def not_found(_):
         return jsonify({"error": "not_found",
