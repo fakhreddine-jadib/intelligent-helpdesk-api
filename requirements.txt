@@ -17,3 +17,8 @@ ipykernel==7.3.0
 flask
 flask-cors
 python-dotenv
+
+# Database and authentication
+pymongo
+bcrypt
+pyjwt
