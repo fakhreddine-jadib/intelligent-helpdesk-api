@@ -15,6 +15,8 @@ from src.models.schemas import (build_ticket_document, utc_now,
                                 PRIORITY_RANK)
 from src.services import activity_log
 
+from src.services import events as sse
+
 logger = logging.getLogger(__name__)
 
 tickets_bp = Blueprint("tickets", __name__)
@@ -74,6 +76,15 @@ def create_ticket():
             "escalated": document["escalated"],
         },
     )
+
+    sse.publish("ticket_created", {
+        "id": str(result.inserted_id),
+        "subject": document["subject"],
+        "assigned_queue": document["assigned_queue"],
+        "priority": document["priority"],
+        "needs_triage": document["needs_triage"],
+        "escalated": document["escalated"],
+    })
 
     return jsonify(_serialize(document)), 201
 
@@ -229,6 +240,13 @@ def update_ticket(ticket_id):
         details={"fields": list(updates.keys())},
     )
     activity_log.record_override(ticket_id, actor, before, updates)
+
+    sse.publish("ticket_updated", {
+        "id": ticket_id,
+        "assigned_queue": doc["assigned_queue"],
+        "priority": doc["priority"],
+        "status": doc["status"],
+    })
 
     return jsonify(_serialize(doc)), 200
 

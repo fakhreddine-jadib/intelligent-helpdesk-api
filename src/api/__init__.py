@@ -44,6 +44,9 @@ def create_app(config_name: str | None = None) -> Flask:
     from src.api.limiter import limiter
     limiter.init_app(app)
 
+    from src.api.routes.events import events_bp
+    app.register_blueprint(events_bp, url_prefix="/api")
+
     @app.errorhandler(404)
     def not_found(_):
         return jsonify({"error": "not_found",
