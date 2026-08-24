@@ -41,6 +41,9 @@ def create_app(config_name: str | None = None) -> Flask:
     from src.api.routes.stats import stats_bp
     app.register_blueprint(stats_bp, url_prefix="/api")
 
+    from src.api.limiter import limiter
+    limiter.init_app(app)
+
     @app.errorhandler(404)
     def not_found(_):
         return jsonify({"error": "not_found",
@@ -51,6 +54,13 @@ def create_app(config_name: str | None = None) -> Flask:
         app.logger.exception("Unhandled server error")
         return jsonify({"error": "internal_error",
                         "message": "An unexpected error occurred."}), 500
+
+    @app.errorhandler(429)
+    def rate_limited(_):
+        return jsonify({
+            "error": "rate_limited",
+            "message": "Trop de tentatives. Réessayez dans quelques minutes.",
+        }), 429
 
     app.logger.info("Application created in %s mode", config_name)
     return app

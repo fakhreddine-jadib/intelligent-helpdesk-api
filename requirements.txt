@@ -18,6 +18,8 @@ flask
 flask-cors
 python-dotenv
 
+Flask-Limiter
+
 # Database and authentication
 pymongo
 bcrypt

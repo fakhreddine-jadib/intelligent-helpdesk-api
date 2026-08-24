@@ -22,6 +22,7 @@ def app(monkeypatch):
 
     app = create_app("development")
     app.config.update(TESTING=True, SECRET_KEY="test-secret")
+    app.config["RATELIMIT_ENABLED"] = False
     yield app
 
     db_module._db = None

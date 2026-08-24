@@ -11,6 +11,8 @@ from src.api.security import (hash_password, verify_password,
 from src.db import get_db
 from src.models.schemas import build_user_document, ROLES
 
+from src.api.limiter import limiter
+
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
@@ -52,6 +54,7 @@ def _validate_registration(data):
 
 
 @auth_bp.post("/auth/register")
+@limiter.limit("5 per hour")
 def register():
     """Create a new user account."""
     payload, error = _validate_registration(request.get_json(silent=True))
@@ -82,6 +85,7 @@ def register():
 
 
 @auth_bp.post("/auth/login")
+@limiter.limit("10 per minute; 50 per hour")
 def login():
     """Authenticate a user and issue a JWT."""
     data = request.get_json(silent=True) or {}
