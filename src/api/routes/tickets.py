@@ -62,7 +62,7 @@ def create_ticket():
     logger.info("Ticket %s created -> %s / %s (triage=%s)",
                 result.inserted_id, document["assigned_queue"],
                 document["priority"], document["needs_triage"])
-    
+
     activity_log.record(
         activity_log.TICKET_CREATED,
         actor_email=user["email"],
@@ -114,10 +114,12 @@ def list_tickets():
 
     try:
         page = max(1, int(request.args.get("page", 1)))
-        page_size = min(MAX_PAGE_SIZE, max(1, int(request.args.get("page_size", 20))))
+        page_size = min(MAX_PAGE_SIZE,
+                        max(1, int(request.args.get("page_size", 20))))
     except ValueError:
         return jsonify({"error": "invalid_pagination",
-                        "message": "Parameters 'page' and 'page_size' must be integers."}), 400
+                        "message": "Parameters 'page' and 'page_size' "
+                                   "must be integers."}), 400
 
     total = db.tickets.count_documents(query)
     cursor = (db.tickets.find(query)
@@ -166,13 +168,15 @@ def update_ticket(ticket_id):
     if "status" in data:
         if data["status"] not in TICKET_STATUSES:
             return jsonify({"error": "invalid_status",
-                            "message": f"Status must be one of {TICKET_STATUSES}."}), 400
+                            "message": f"Status must be one of "
+                                       f"{TICKET_STATUSES}."}), 400
         updates["status"] = data["status"]
 
     if "assigned_queue" in data:
         if data["assigned_queue"] not in QUEUES:
             return jsonify({"error": "invalid_queue",
-                            "message": f"Unknown queue '{data['assigned_queue']}'."}), 400
+                            "message": f"Unknown queue "
+                                       f"'{data['assigned_queue']}'."}), 400
         updates["assigned_queue"] = data["assigned_queue"]
         updates["needs_triage"] = False
         updates["manually_rerouted"] = True
@@ -180,7 +184,8 @@ def update_ticket(ticket_id):
     if "priority" in data:
         if data["priority"] not in PRIORITIES:
             return jsonify({"error": "invalid_priority",
-                            "message": f"Priority must be one of {PRIORITIES}."}), 400
+                            "message": f"Priority must be one of "
+                                       f"{PRIORITIES}."}), 400
         updates["priority"] = data["priority"]
         updates["priority_rank"] = PRIORITY_RANK[data["priority"]]
         updates["manually_reprioritized"] = True
@@ -195,6 +200,8 @@ def update_ticket(ticket_id):
     updates["updated_at"] = utc_now()
 
     db = get_db()
+
+    # read the pre-update state so overrides can be logged
     try:
         before = db.tickets.find_one({"_id": ObjectId(ticket_id)})
     except InvalidId:
@@ -212,6 +219,9 @@ def update_ticket(ticket_id):
     )
 
     actor = request.current_user["email"]
+    logger.info("Ticket %s updated by %s: %s",
+                ticket_id, actor, list(updates))
+
     activity_log.record(
         activity_log.TICKET_UPDATED,
         actor_email=actor,
@@ -220,8 +230,6 @@ def update_ticket(ticket_id):
     )
     activity_log.record_override(ticket_id, actor, before, updates)
 
-    logger.info("Ticket %s updated by %s: %s",
-                ticket_id, request.current_user["email"], list(updates))
     return jsonify(_serialize(doc)), 200
 
 
@@ -242,12 +250,13 @@ def delete_ticket(ticket_id):
 
     logger.warning("Ticket %s deleted by %s",
                    ticket_id, request.current_user["email"])
-    
+
     activity_log.record(
         activity_log.TICKET_DELETED,
         actor_email=request.current_user["email"],
         ticket_id=ticket_id,
     )
+
     return jsonify({"deleted": True}), 200
 
 

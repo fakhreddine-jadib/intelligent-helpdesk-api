@@ -22,3 +22,8 @@ python-dotenv
 pymongo
 bcrypt
 pyjwt
+
+# Testing
+pytest
+pytest-cov
+mongomock
