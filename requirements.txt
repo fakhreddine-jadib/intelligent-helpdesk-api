@@ -6,6 +6,8 @@ numpy==2.5.1
 scikit-learn==1.9.0
 xgboost==3.4.0
 
+sentence-transformers
+
 # Visualization
 matplotlib==3.11.1
 seaborn==0.13.2
