@@ -21,6 +21,8 @@ class Config:
 
     MODELS_DIR = BASE_DIR / "models"
 
+    REDIS_URL = os.environ.get("REDIS_URL", "memory://")
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
